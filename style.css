@@ -101,7 +101,8 @@ input[type=date]::-webkit-date-and-time-value { text-align: left; }
 .lib .t b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lib .t span { color: var(--dim); font-size: 13px; }
 .lib .del { background: none; border: 0; font-size: 18px; padding: 6px; cursor: pointer; }
-.btn.new, #installBtn { width: 100%; margin: 4px 0 2px; }
+.btn.new, #installBtn, #pcInstallBtn { width: 100%; margin: 4px 0 2px; }
+a.btn { display: block; text-align: center; text-decoration: none; }
 .view > .btn.new { margin: 10px 0 0; }   /* 사람 탭 맨 위(모임 카드 위) */
 .about a { color: var(--neon); }
 

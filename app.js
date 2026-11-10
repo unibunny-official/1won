@@ -1,7 +1,7 @@
 // 1원 더치페이 — 휴대폰 웹앱 화면. 계산은 전부 engine.js(PC 판과 같은 규칙).
 import { Event, DutchPayError, won, checkDate, APP_URL } from "./engine.js";
 
-export const APP_VERSION = "1.8";
+export const APP_VERSION = "1.9";
 const ANIMALS = [..."🐰🐻🐱🐶🐼🦊🐨🐯🐹🐸🐧🐥"];
 const STORE_KEY = "dpay.v1";
 const $ = (id) => document.getElementById(id);
@@ -530,6 +530,16 @@ function wire() {
   window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; });
   window.addEventListener("appinstalled", () => { $("installCard").hidden = true; toast("홈 화면에 설치했어요 📲"); });
   $("installCard").hidden = standalone;
+  if (!IS_MOBILE) {   // PC 브라우저: 창이 있는 PC 판(설치 파일)을 안내하고, 브라우저 앱 설치는 설치 창이 뜰 때만 둘째 단추로
+    $("installTitle").textContent = "💻 PC 에 설치";
+    $("installHint").textContent = "PC 에서는 세 칸이 나란히 보이는 PC 판이 편해요. 설치 파일(DutchPay_Setup)을 받아 실행하세요. "
+      + "서명이 없는 파일이라 Windows 가 경고하면 '추가 정보 → 실행'을 누르면 돼요. 정산 파일(.dpay.json)은 서로 주고받을 수 있어요.";
+    $("pcInstallBtn").hidden = false;
+    $("installBtn").hidden = true;
+    $("installBtn").textContent = "🌐 브라우저 앱으로도 설치";
+    $("installBtn").classList.replace("lav", "ghost");
+    window.addEventListener("beforeinstallprompt", () => { $("installBtn").hidden = false; });
+  }
   $("installBtn").onclick = async () => {
     if (installEvt) {
       const evt = installEvt; installEvt = null;
