@@ -1,7 +1,7 @@
 // 1원 더치페이 — 휴대폰 웹앱 화면. 계산은 전부 engine.js(PC 판과 같은 규칙).
 import { Event, DutchPayError, won, checkDate, APP_URL } from "./engine.js";
 
-export const APP_VERSION = "1.6";
+export const APP_VERSION = "1.8";
 const ANIMALS = [..."🐰🐻🐱🐶🐼🦊🐨🐯🐹🐸🐧🐥"];
 const STORE_KEY = "dpay.v1";
 const $ = (id) => document.getElementById(id);
@@ -522,6 +522,29 @@ function wire() {
     const row = e.target.closest("[data-id]");
     if (!row) return;
     if (row.dataset.id === curId || openEvent(row.dataset.id)) { render(); setTab("settle"); }
+  };
+  // 홈 화면에 설치 — 안드로이드(Chrome·삼성)는 설치 창을 바로 띄우고, 아이폰은 Safari 공유 메뉴를 안내한다.
+  // 이미 홈 화면 앱으로 열었으면(standalone) 카드를 보이지 않는다.
+  const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  let installEvt = null;
+  window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; });
+  window.addEventListener("appinstalled", () => { $("installCard").hidden = true; toast("홈 화면에 설치했어요 📲"); });
+  $("installCard").hidden = standalone;
+  $("installBtn").onclick = async () => {
+    if (installEvt) {
+      const evt = installEvt; installEvt = null;
+      evt.prompt();
+      const r = await evt.userChoice.catch(() => ({ outcome: "dismissed" }));
+      if (r.outcome !== "accepted") installEvt = evt;   // 취소했으면 다시 누를 수 있게
+      return;
+    }
+    const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    sheet(`<h3>📲 홈 화면에 설치</h3>` + (ios
+      ? `<p>Safari 로 열고, 화면 아래 <b>공유</b> 단추(네모에서 화살표가 올라가는 모양)를 누른 뒤 <b>홈 화면에 추가</b> 를 고르세요.</p>
+         <p class="hint">카톡·인스타 안에서 열렸다면 오른쪽 위 메뉴에서 'Safari 로 열기'를 먼저 하세요.</p>`
+      : `<p>브라우저 오른쪽 위 메뉴(⋮)를 누르고 <b>홈 화면에 추가</b> 또는 <b>앱 설치</b> 를 고르세요.</p>
+         <p class="hint">삼성 인터넷은 아래 메뉴(≡) → <b>현재 페이지 추가</b> → <b>홈 화면</b>. 카톡 안에서 열렸다면 먼저 '다른 브라우저로 열기'를 하세요.</p>`),
+      [{ text: "알겠어요" }]);
   };
   $("exportBtn").onclick = exportFile;
   $("importFile").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) importFile(f); };
