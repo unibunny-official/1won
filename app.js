@@ -1,7 +1,7 @@
 // 1원 더치페이 — 휴대폰 웹앱 화면. 계산은 전부 engine.js(PC 판과 같은 규칙).
 import { Event, DutchPayError, won, checkDate, APP_URL } from "./engine.js";
 
-export const APP_VERSION = "1.2";
+export const APP_VERSION = "1.5";
 const ANIMALS = [..."🐰🐻🐱🐶🐼🦊🐨🐯🐹🐸🐧🐥"];
 const STORE_KEY = "dpay.v1";
 const $ = (id) => document.getElementById(id);
@@ -495,7 +495,8 @@ function wire() {
   $("expenses").onclick = (e) => { const r = e.target.closest("[data-eid]"); if (r) editExpense(+r.dataset.eid); };
   $("shareImg").onclick = shareImage;
   $("shareText").onclick = shareText;
-  $("newBtn").onclick = () => { startNew(); render(); setTab("people"); toast("새 정산을 시작했어요 🌱"); };
+  const newEvent = () => { startNew(); render(); setTab("people"); toast("새 정산을 시작했어요 🌱"); };
+  $("newBtn").onclick = $("newBtnTop").onclick = newEvent;   // 목록 탭·사람 탭 맨 위, 같은 동작
   window.addEventListener("storage", (e) => {   // 다른 탭·홈 화면 앱에서 바뀌면 따라간다
     if (e.key !== STORE_KEY || DEMO) return;
     store = loadStore();
