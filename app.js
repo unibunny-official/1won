@@ -1,7 +1,7 @@
 // 1원 더치페이 — 휴대폰 웹앱 화면. 계산은 전부 engine.js(PC 판과 같은 규칙).
 import { Event, DutchPayError, won, checkDate, APP_URL } from "./engine.js";
 
-export const APP_VERSION = "1.5";
+export const APP_VERSION = "1.6";
 const ANIMALS = [..."🐰🐻🐱🐶🐼🦊🐨🐯🐹🐸🐧🐥"];
 const STORE_KEY = "dpay.v1";
 const $ = (id) => document.getElementById(id);
@@ -553,4 +553,17 @@ if (params.has("report")) {   // ?report=1 — 정산표 그림을 화면에 보
   const show = () => { document.body.innerHTML = ""; const cv = drawReport(); cv.style.width = "100%"; document.body.append(cv); };
   bgImg.complete ? show() : (bgImg.onload = show);
 }
-if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
+if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+  // 새 버전이 설치돼 넘겨받으면 화면을 한 번 새로 고친다(글자를 치는 중이면 다음 열 때).
+  // 내용은 고칠 때마다 저장돼 있으므로 새로 고쳐도 잃지 않는다.
+  let reloaded = false;
+  const hadController = !!navigator.serviceWorker.controller;   // 처음 설치(첫 방문)는 새로 고치지 않는다
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (reloaded || !hadController || !navigator.serviceWorker.controller) return;
+    const typing = ["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName);
+    if (typing || !$("modal").hidden) return;
+    reloaded = true;
+    location.reload();
+  });
+}
