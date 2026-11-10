@@ -1,0 +1,17 @@
+{
+  "name": "1원 더치페이",
+  "short_name": "1원 더치페이",
+  "description": "누가 누구에게 얼마? 모임·여행 정산을 1원까지 정확하게 — 더치페이·N빵 계산기",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#15111F",
+  "theme_color": "#15111F",
+  "icons": [
+    { "src": "img/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "img/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "img/icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

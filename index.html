@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>1원 더치페이 — 더치페이·N빵·여행 정산 계산기</title>
+<meta name="description" content="1원 더치페이 — 누가 누구에게 얼마? 여러 명이 번갈아 낸 모임·여행 경비를 1원까지 정확하게 나누는 무료 더치페이·N빵 계산기. 가입 없이 바로.">
+<meta name="theme-color" content="#15111F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="1원 더치페이">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="img/favicon.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">🍰 1원 더치페이</div>
+  <a class="credit" href="https://www.instagram.com/unibunny_official/" target="_blank" rel="noopener">
+    <img src="img/instagram.png" alt=""><span>@unibunny_official</span></a>
+</header>
+
+<main>
+  <!-- 사람 -->
+  <section class="view" data-view="people">
+    <div class="card">
+      <h2>🎉 모임</h2>
+      <label class="row"><span>시작</span><input id="evDate" type="date"></label>
+      <label class="row"><span>끝</span><input id="evEnd" type="date"></label>
+      <p class="hint" style="margin-top:-2px">하루짜리 모임이면 끝을 시작과 같게 두면 돼요.</p>
+      <label class="row"><span>이름</span><input id="evTitle" placeholder="예: 금요일 회식" maxlength="40"></label>
+    </div>
+    <div class="card">
+      <h2>👫 함께한 사람</h2>
+      <form id="personForm" class="inline">
+        <input id="personName" placeholder="이름을 적고 추가" maxlength="20" enterkeyhint="done">
+        <button class="btn">＋ 추가</button>
+      </form>
+      <div id="people" class="chips"></div>
+      <p class="hint">이름을 누르면 바꾸거나 뺄 수 있어요</p>
+    </div>
+  </section>
+
+  <!-- 쓴 돈 -->
+  <section class="view" data-view="spend">
+    <div class="card" id="formCard">
+      <h2 id="formTitle">🧾 쓴 돈 넣기</h2>
+      <label class="row"><span>날짜</span><input id="exDate" type="date"></label>
+      <label class="row"><span>항목</span><input id="exItem" placeholder="무엇에? (예: 삼겹살)" maxlength="40"></label>
+      <label class="row"><span>금액</span><input id="exAmount" placeholder="얼마? (예: 54,000)" inputmode="numeric" enterkeyhint="done"></label>
+      <label class="row"><span>결제</span><select id="exPayer"></select></label>
+      <div class="row top"><span>나눠 낼 사람</span><button type="button" class="btn ghost small" id="allBtn">모두 같이</button></div>
+      <div id="sharers" class="chips toggles"></div>
+      <div class="actions">
+        <button class="btn ghost" id="cancelBtn" hidden>취소</button>
+        <button class="btn ghost danger" id="deleteBtn" hidden>지우기</button>
+        <button class="btn mint" id="submitBtn">＋ 쓴 돈 넣기</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>📋 결제 내역</h2>
+      <p class="sub" id="listInfo"></p>
+      <div id="expenses"></div>
+      <p class="hint">줄을 누르면 위에서 고칠 수 있어요</p>
+    </div>
+  </section>
+
+  <!-- 정산 -->
+  <section class="view" data-view="settle">
+    <div class="card">
+      <h2>📊 한눈에 보기</h2>
+      <div class="total" id="total"></div>
+      <p class="sub" id="perInfo"></p>
+      <div id="balances"></div>
+      <p class="hint">나누어떨어지지 않는 1원 단위는 결제한 사람이 더 내요(합계는 1원도 안 틀려요).</p>
+    </div>
+    <div class="card">
+      <h2>💸 이렇게 보내면 끝!</h2>
+      <div id="transfers" class="transfers"></div>
+      <div class="actions">
+        <button class="btn mint" id="shareImg">📸 정산표 그림 공유</button>
+        <button class="btn lav" id="shareText">📋 글로 공유</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 목록 -->
+  <section class="view" data-view="list">
+    <div class="card">
+      <h2>📂 내 정산</h2>
+      <p class="hint">고칠 때마다 이 휴대폰에 자동 저장돼요. 누르면 열려요.</p>
+      <button class="btn" id="newBtn">＋ 새 정산 시작</button>
+      <div id="library"></div>
+    </div>
+    <div class="card">
+      <h2>📤 파일로 주고받기</h2>
+      <p class="hint">PC 판 1원 더치페이와 같은 .dpay.json 파일이에요.</p>
+      <div class="actions left">
+        <button class="btn ghost" id="exportBtn">지금 정산 내보내기</button>
+        <label class="btn ghost">가져오기<input type="file" id="importFile" accept=".json,application/json" hidden></label>
+      </div>
+    </div>
+    <div class="card about">
+      <h2>ⓘ 정보</h2>
+      <p><b>1원 더치페이</b> <span id="ver"></span><br>
+      만든 사람 · <a href="https://www.instagram.com/unibunny_official/" target="_blank" rel="noopener">Instagram @unibunny_official</a></p>
+      <p class="hint">정산 내용은 이 휴대폰(브라우저) 안에만 저장되고 어디로도 보내지지 않아요.
+      브라우저의 '사이트 데이터 삭제'를 하면 지워지니, 중요한 정산은 파일로 내보내 두세요.
+      외부 라이브러리를 쓰지 않았고, 그림은 제작자 소유예요. 글꼴·이모지는 휴대폰의 것을 써요.</p>
+    </div>
+  </section>
+</main>
+
+<nav class="tabs">
+  <button data-tab="people"><b>👫</b>사람</button>
+  <button data-tab="spend"><b>🧾</b>쓴 돈</button>
+  <button data-tab="settle"><b>📊</b>정산</button>
+  <button data-tab="list"><b>📂</b>목록</button>
+</nav>
+
+<div id="toast" class="toast" hidden></div>
+<div id="modal" class="modal" hidden><div class="sheet" id="sheet"></div></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
