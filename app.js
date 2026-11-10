@@ -1,7 +1,7 @@
 // 1원 더치페이 — 휴대폰 웹앱 화면. 계산은 전부 engine.js(PC 판과 같은 규칙).
 import { Event, DutchPayError, won, checkDate, APP_URL } from "./engine.js";
 
-export const APP_VERSION = "1.9";
+export const APP_VERSION = "2.0";
 const ANIMALS = [..."🐰🐻🐱🐶🐼🦊🐨🐯🐹🐸🐧🐥"];
 const STORE_KEY = "dpay.v1";
 const $ = (id) => document.getElementById(id);
@@ -530,7 +530,8 @@ function wire() {
   window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; });
   window.addEventListener("appinstalled", () => { $("installCard").hidden = true; toast("홈 화면에 설치했어요 📲"); });
   $("installCard").hidden = standalone;
-  if (!IS_MOBILE) {   // PC 브라우저: 창이 있는 PC 판(설치 파일)을 안내하고, 브라우저 앱 설치는 설치 창이 뜰 때만 둘째 단추로
+  const IS_WIN = /Windows/i.test(navigator.userAgent);
+  if (!IS_MOBILE && IS_WIN) {   // Windows PC: 창이 있는 PC 판(설치 파일)을 안내하고, 브라우저 앱 설치는 설치 창이 뜰 때만 둘째 단추로
     $("installTitle").textContent = "💻 PC 에 설치";
     $("installHint").textContent = "PC 에서는 세 칸이 나란히 보이는 PC 판이 편해요. 설치 파일(DutchPay_Setup)을 받아 실행하세요. "
       + "서명이 없는 파일이라 Windows 가 경고하면 '추가 정보 → 실행'을 누르면 돼요. 정산 파일(.dpay.json)은 서로 주고받을 수 있어요.";
@@ -539,6 +540,10 @@ function wire() {
     $("installBtn").textContent = "🌐 브라우저 앱으로도 설치";
     $("installBtn").classList.replace("lav", "ghost");
     window.addEventListener("beforeinstallprompt", () => { $("installBtn").hidden = false; });
+  } else if (!IS_MOBILE) {      // Mac·리눅스: PC 판(Windows 전용)은 없고, 브라우저 앱으로 설치(Chrome·Edge 는 설치 창, Safari 는 Dock 에 추가)
+    $("installTitle").textContent = "💻 이 컴퓨터에 설치";
+    $("installHint").textContent = "브라우저 앱으로 설치하면 Dock·앱 목록에서 바로 열리고 주소창 없이 써요. 인터넷이 안 돼도 열려요.";
+    $("installBtn").textContent = "💻 앱으로 설치";
   }
   $("installBtn").onclick = async () => {
     if (installEvt) {
@@ -549,12 +554,15 @@ function wire() {
       return;
     }
     const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-    sheet(`<h3>📲 홈 화면에 설치</h3>` + (ios
-      ? `<p>Safari 로 열고, 화면 아래 <b>공유</b> 단추(네모에서 화살표가 올라가는 모양)를 누른 뒤 <b>홈 화면에 추가</b> 를 고르세요.</p>
-         <p class="hint">카톡·인스타 안에서 열렸다면 오른쪽 위 메뉴에서 'Safari 로 열기'를 먼저 하세요.</p>`
-      : `<p>브라우저 오른쪽 위 메뉴(⋮)를 누르고 <b>홈 화면에 추가</b> 또는 <b>앱 설치</b> 를 고르세요.</p>
-         <p class="hint">삼성 인터넷은 아래 메뉴(≡) → <b>현재 페이지 추가</b> → <b>홈 화면</b>. 카톡 안에서 열렸다면 먼저 '다른 브라우저로 열기'를 하세요.</p>`),
-      [{ text: "알겠어요" }]);
+    let how;
+    if (ios) how = `<p>Safari 로 열고, 화면 아래 <b>공유</b> 단추(네모에서 화살표가 올라가는 모양)를 누른 뒤 <b>홈 화면에 추가</b> 를 고르세요.</p>
+         <p class="hint">카톡·인스타 안에서 열렸다면 오른쪽 위 메뉴에서 'Safari 로 열기'를 먼저 하세요.</p>`;
+    else if (IS_MOBILE) how = `<p>브라우저 오른쪽 위 메뉴(⋮)를 누르고 <b>홈 화면에 추가</b> 또는 <b>앱 설치</b> 를 고르세요.</p>
+         <p class="hint">삼성 인터넷은 아래 메뉴(≡) → <b>현재 페이지 추가</b> → <b>홈 화면</b>. 카톡 안에서 열렸다면 먼저 '다른 브라우저로 열기'를 하세요.</p>`;
+    else how = `<p><b>Chrome·Edge</b>: 주소창 오른쪽 끝의 <b>설치</b> 아이콘(모니터에 화살표)을 누르거나, 메뉴(⋮) → <b>앱 설치</b> / <b>Dock 에 추가</b>.</p>
+         <p><b>Safari(Mac)</b>: 메뉴 <b>파일 → Dock 에 추가</b>, 또는 <b>공유</b> 단추 → <b>Dock 에 추가</b>.</p>
+         <p class="hint">Firefox 는 앱 설치를 지원하지 않아요. 북마크로 쓰거나 다른 브라우저로 여세요.</p>`;
+    sheet(`<h3>${IS_MOBILE ? "📲 홈 화면에 설치" : "💻 이 컴퓨터에 설치"}</h3>` + how, [{ text: "알겠어요" }]);
   };
   $("exportBtn").onclick = exportFile;
   $("importFile").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) importFile(f); };
