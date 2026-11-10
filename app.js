@@ -1,7 +1,7 @@
 // 1원 더치페이 — 휴대폰 웹앱 화면. 계산은 전부 engine.js(PC 판과 같은 규칙).
-import { Event, DutchPayError, won, checkDate } from "./engine.js";
+import { Event, DutchPayError, won, checkDate, APP_URL } from "./engine.js";
 
-export const APP_VERSION = "1.1";
+export const APP_VERSION = "1.2";
 const ANIMALS = [..."🐰🐻🐱🐶🐼🦊🐨🐯🐹🐸🐧🐥"];
 const STORE_KEY = "dpay.v1";
 const $ = (id) => document.getElementById(id);
@@ -389,7 +389,11 @@ export function drawReport() {
   for (const t of tr) { y += 64; text(`${label(t.from)}  →  ${label(t.to)}`, P + 40, y, 34, "#FFF1E0", 700, "left", W - 2 * P - 330);
                         text(won(t.amount), W - P - 20, y, 36, "#FFD27A", 900, "right"); }
   if (!tr.length) { y += 64; text("주고받을 돈이 없어요 🎉", P + 40, y, 32, "#CDBBCB"); }
-  text("1원 더치페이로 정산했어요 🐰", W - P, H - 36, 24, "rgba(255,241,224,.75)", 400, "right");
+  // 맨 아래 주소 — 정산표를 받은 사람이 다음 모임에서 찾아오게
+  c.fillStyle = "rgba(21,17,31,.78)";
+  c.beginPath(); c.roundRect(P / 2, H - 92, W - P, 64, 32); c.fill();
+  text("🍰 1원 더치페이로 정산했어요", P + 10, H - 49, 25, "#FFF1E0", 700);
+  text(APP_URL.replace("https://", "").replace(/\/$/, ""), W - P - 10, H - 49, 25, "#FFD27A", 800, "right");
   return cv;
 }
 

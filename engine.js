@@ -7,6 +7,7 @@
 // 송금 경로: 받을 사람·보낼 사람을 큰 금액부터 맞춘다(송금 횟수 ≤ 차액 0 아닌 인원 − 1).
 
 export const MAX_AMOUNT = 1e12;
+export const APP_URL = "https://unibunny-official.github.io/1won/";   // 공유 글 끝에 붙인다
 
 export class DutchPayError extends Error {}
 
@@ -222,6 +223,7 @@ export class Event {
     } else {
       lines.push("주고받을 돈이 없어요 🎉");
     }
+    lines.push("", `🍰 1원 더치페이 · ${APP_URL}`);      // 받은 사람이 다음 모임에서 쓰게
     return lines.join("\n");
   }
 
