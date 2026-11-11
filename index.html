@@ -50,7 +50,16 @@
         <button class="btn">＋ 추가</button>
       </form>
       <div id="people" class="chips"></div>
-      <p class="hint">이름을 누르면 바꾸거나 뺄 수 있어요</p>
+      <p class="hint">이름을 누르면 바꾸거나 빼거나 👑 총무로 정할 수 있어요</p>
+    </div>
+    <div class="card">
+      <h2>💰 모임 통장 <small>동호회·회비 모임이면</small></h2>
+      <label class="row"><span>잔액</span><input id="fund" placeholder="시작할 때 통장에 있던 돈" inputmode="numeric"></label>
+      <label class="row"><span>참가비</span><input id="fee" placeholder="1인당 (없으면 비워요)" inputmode="numeric"></label>
+      <label class="row"><span>남는 돈</span><select id="surplus">
+        <option value="carry">다음 모임 잔액으로</option><option value="refund">똑같이 돌려주기</option></select></label>
+      <p class="hint">잔액이나 참가비가 있으면 총무가 필요해요(이름을 누르고 '👑 총무로'). 쓴 돈은 통장이 내고,
+      모자라면 똑같이 더 내요. 송금은 모두 총무를 거쳐요.</p>
     </div>
   </section>
 
@@ -62,8 +71,11 @@
       <label class="row"><span>항목</span><input id="exItem" placeholder="무엇에? (예: 삼겹살)" maxlength="40"></label>
       <label class="row"><span>금액</span><input id="exAmount" placeholder="얼마? (예: 54,000)" inputmode="numeric" enterkeyhint="done"></label>
       <label class="row"><span>결제</span><select id="exPayer"></select></label>
-      <div class="row top"><span>나눠 낼 사람</span><button type="button" class="btn ghost small" id="allBtn">모두 같이</button></div>
-      <div id="sharers" class="chips toggles"></div>
+      <div id="shareBox">
+        <div class="row top"><span>나눠 낼 사람</span><button type="button" class="btn ghost small" id="allBtn">모두 같이</button></div>
+        <div id="sharers" class="chips toggles"></div>
+      </div>
+      <p class="hint" id="fundShareHint" hidden>💰 회비 모임은 모두 같이 나눠요. 총무가 결제한 건 통장에서 낸 거예요.</p>
       <div class="actions">
         <button class="btn ghost" id="cancelBtn" hidden>취소</button>
         <button class="btn ghost danger" id="deleteBtn" hidden>지우기</button>
@@ -84,8 +96,9 @@
       <h2>📊 한눈에 보기</h2>
       <div class="total" id="total"></div>
       <p class="sub" id="perInfo"></p>
+      <p class="sub fund" id="fundInfo" hidden></p>
       <div id="balances"></div>
-      <p class="hint">나누어떨어지지 않는 1원 단위는 결제한 사람이 더 내요(합계는 1원도 안 틀려요).</p>
+      <p class="hint" id="balHint">나누어떨어지지 않는 1원 단위는 결제한 사람이 더 내요(합계는 1원도 안 틀려요).</p>
     </div>
     <div class="card">
       <h2>💸 이렇게 보내면 끝!</h2>

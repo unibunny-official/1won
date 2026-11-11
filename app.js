@@ -1,7 +1,7 @@
 // 1원 더치페이 — 휴대폰 웹앱 화면. 계산은 전부 engine.js(PC 판과 같은 규칙).
 import { Event, DutchPayError, won, checkDate, APP_URL } from "./engine.js";
 
-export const APP_VERSION = "2.0";
+export const APP_VERSION = "2.1";
 const ANIMALS = [..."🐰🐻🐱🐶🐼🦊🐨🐯🐹🐸🐧🐥"];
 const STORE_KEY = "dpay.v1";
 const $ = (id) => document.getElementById(id);
@@ -82,7 +82,8 @@ function save() {
 // ---------------- 공통 ----------------
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const avatar = (pid) => ANIMALS[(pid - 1) % ANIMALS.length];
-const label = (pid) => `${avatar(pid)} ${ev.participant(pid).name}`;
+const label = (pid) => `${pid === ev.treasurerId ? "👑 " : ""}${avatar(pid)} ${ev.participant(pid).name}`;
+const fmtWon = (v) => (v ? Number(v).toLocaleString("en-US") : "");
 function dayText(day) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day || "");
   if (!m) return day || "-";
@@ -141,6 +142,10 @@ function render() {
   $("evEnd").value = ev.endDate || ev.date;
   $("evEnd").min = ev.date;
   if (document.activeElement !== $("evTitle")) $("evTitle").value = ev.title;
+  const fm = ev.fundMode;
+  if (document.activeElement !== $("fund")) $("fund").value = fmtWon(ev.fund);
+  if (document.activeElement !== $("fee")) $("fee").value = fmtWon(ev.fee);
+  $("surplus").value = ev.surplus;
   // 사람
   $("people").innerHTML = ev.participants.length
     ? ev.participants.map((p) => `<button class="chip" data-pid="${p.id}">${esc(label(p.id))}</button>`).join("")
@@ -148,10 +153,13 @@ function render() {
   // 쓴 돈 입력
   $("exDate").value = formDate;
   const payer = +$("exPayer").value || null;
-  $("exPayer").innerHTML = ev.participants.map((p) => `<option value="${p.id}">${esc(label(p.id))}</option>`).join("");
+  $("exPayer").innerHTML = ev.participants
+    .map((p) => `<option value="${p.id}">${esc(label(p.id))}${fm && p.id === ev.treasurerId ? " (통장)" : ""}</option>`).join("");
   if (payer && ev.participants.some((p) => p.id === payer)) $("exPayer").value = String(payer);
   $("sharers").innerHTML = ev.participants
     .map((p) => `<button type="button" class="chip${checked.has(p.id) ? " on" : ""}" data-pid="${p.id}">${esc(label(p.id))}</button>`).join("");
+  $("shareBox").hidden = fm;                 // 회비 모임은 모두 같이 → 고를 것 없음
+  $("fundShareHint").hidden = !fm;
   const editing = editingId !== null;
   $("formTitle").textContent = editing ? "✏️ 고치는 중" : "🧾 쓴 돈 넣기";
   $("submitBtn").textContent = editing ? "✔ 고친 내용 저장" : "＋ 쓴 돈 넣기";
@@ -163,7 +171,7 @@ function render() {
   let html = "", lastDay = null;
   for (const e of list) {
     if (e.date !== lastDay) { html += `<div class="day">${esc(dayText(e.date))}</div>`; lastDay = e.date; }
-    const who = e.shared_by.length === ev.participants.length ? "모두" : e.shared_by.map((p) => label(p)).join(" ");
+    const who = fm || e.shared_by.length === ev.participants.length ? "모두" : e.shared_by.map((p) => label(p)).join(" ");
     html += `<div class="ex${e.id === editingId ? " sel" : ""}" data-eid="${e.id}">
       <span class="name">${esc(e.item_name)}</span><span class="amt">${won(e.amount)}</span>
       <span class="meta">${esc(label(e.payer_id))} 결제 · ${esc(who)}</span></div>`;
@@ -173,12 +181,17 @@ function render() {
   const n = ev.participants.length, total = ev.total();
   $("total").textContent = `총 ${won(total)}`;
   $("perInfo").textContent = `${n}명 · 지출 ${list.length}건${n ? ` · 1인 평균 약 ${won(Math.floor(total / n))}` : ""}`;
+  $("fundInfo").hidden = !fm;
+  if (fm) $("fundInfo").textContent = fundLines().join("\n");
   const bal = ev.balances();
   $("balances").innerHTML = ev.participants.map((p) => {
-    const b = bal.get(p.id), [cls, text] = netText(b.net);
+    const b = bal.get(p.id), isT = fm && p.id === ev.treasurerId;
+    const [cls, text] = isT ? ["even", "통장 관리"] : netText(b.net);
     return `<div class="bal"><span class="who">${esc(label(p.id))}</span><span class="net ${cls}">${text}</span>
-      <span class="meta">낸 돈 ${won(b.paid)} · 내 몫 ${won(b.owed)}</span></div>`;
+      <span class="meta">${isT ? "통장에서 낸 돈" : "낸 돈"} ${won(b.paid)} · 내 몫 ${won(b.owed)}</span></div>`;
   }).join("");
+  $("balHint").textContent = fm ? "쓴 돈은 통장이 내고, 모자라면 똑같이 더 내요. 나누고 남는 1원 단위는 총무가 더 내요."
+    : "나누어떨어지지 않는 1원 단위는 결제한 사람이 더 내요(합계는 1원도 안 틀려요).";
   const tr = ev.settle();
   $("transfers").innerHTML = tr.length
     ? tr.map((t) => `<div class="tr"><span>${esc(label(t.from))} → ${esc(label(t.to))}</span><b>${won(t.amount)}</b></div>`).join("")
@@ -202,6 +215,18 @@ function render() {
   $("ver").textContent = `Ver.${APP_VERSION}`;
 }
 
+/** 모임 통장 셈 — 정산 탭·정산표 그림에 같은 글로. */
+function fundLines() {
+  const fs = ev.fundSummary(), n = ev.participants.length;
+  const tname = ev.treasurerId !== null ? ev.participant(ev.treasurerId).name : "총무";
+  const parts = [`잔액 ${won(ev.fund)}`, ...(ev.fee ? [`참가비 ${won(ev.fee)}×${n}명`] : [])];
+  const out = [`💰 모임 통장(총무 ${tname})`, `${parts.join(" + ")} = ${won(fs.pool)}`];
+  if (fs.short) out.push(`${won(fs.short)} 모자라서 1인 ${won(fs.extra)}씩 더 내요` + (fs.rem ? `(남는 ${won(fs.rem)}은 총무가)` : ""));
+  else if (fs.refund) out.push(`${won(fs.pool - fs.total)} 남아서 1인 ${won(fs.refund)}씩 돌려받아요` + (fs.nextFund ? `(${won(fs.nextFund)}은 다음 모임으로)` : ""));
+  out.push(`📌 다음 모임 잔액 ${won(fs.nextFund)}`);
+  return out;
+}
+
 // ---------------- 동작 ----------------
 function guard(fn) {
   try { fn(); return true; }
@@ -211,6 +236,24 @@ function guard(fn) {
   }
 }
 function changed() { save(); render(); }
+
+function applyFund() {
+  const before = [ev.fund, ev.fee, ev.surplus].join();
+  if (!guard(() => ev.setFund($("fund").value, $("fee").value, $("surplus").value))) { render(); return; }
+  if ([ev.fund, ev.fee, ev.surplus].join() !== before) changed();
+}
+
+/** 새 정산. 회비 모임이면 사람·총무·참가비·잔액(다음 모임 잔액)을 가져올지 묻는다. */
+function newEvent() {
+  const go = (e) => { if (e) addAndOpen(e); else startNew(); render(); setTab("people"); toast("새 정산을 시작했어요 🌱"); };
+  if (!ev.fundMode) { go(); return; }
+  const cur = ev, next = cur.fundSummary().nextFund;
+  sheet(`<h3>🌱 이어서 새 정산</h3><p>'${esc(cur.title || cur.date)}' 모임을 이어서 시작할까요?
+    사람·총무·참가비·남는 돈 처리 방식을 가져오고, 모임 잔액은 다음 모임 잔액 <b>${won(next)}</b>으로 시작해요.</p>`, [
+    { text: "빈 정산으로", cls: "ghost", onClick: () => go() },
+    { text: "이어서 시작", onClick: () => go(cur.nextEvent(today())) },
+  ]);
+}
 
 function clearForm() {
   if (editingId !== null) formDate = formDateBefore;   // 고치기를 끝내면(저장·취소) 원래 날짜로
@@ -223,7 +266,7 @@ function clearForm() {
 function submitExpense() {
   const payer = +$("exPayer").value;
   if (!payer) { toast("먼저 함께한 사람을 넣어 주세요."); return; }
-  const shared = ev.participants.map((p) => p.id).filter((id) => checked.has(id));
+  const shared = ev.participants.map((p) => p.id).filter((id) => ev.fundMode || checked.has(id));
   const args = [$("exItem").value, $("exAmount").value, payer, shared, formDate];
   const wasEditing = editingId !== null;
   if (!guard(() => (wasEditing ? ev.updateExpense(editingId, ...args) : ev.addExpense(...args)))) return;
@@ -249,9 +292,13 @@ function editExpense(eid) {
 function personSheet(pid) {
   const p = ev.participant(pid);
   const rename = () => guard(() => { ev.renameParticipant(pid, $("renameInput").value); changed(); });
+  const isT = pid === ev.treasurerId;
   const s = sheet(`<h3>${esc(label(pid))}</h3>
-    <label class="row"><span>새 이름</span><input id="renameInput" maxlength="20" value="${esc(p.name)}" enterkeyhint="done"></label>`, [
+    <label class="row"><span>새 이름</span><input id="renameInput" maxlength="20" value="${esc(p.name)}" enterkeyhint="done"></label>
+    <p class="hint">👑 총무: 모임 통장(잔액·참가비)을 가진 사람. 송금은 모두 총무를 거쳐요.</p>`, [
     { text: "빼기", cls: "ghost danger", onClick: () => { removePerson(pid); } },
+    { text: isT ? "👑 총무 해제" : "👑 총무로", cls: "ghost",
+      onClick: () => guard(() => { ev.setTreasurer(isT ? null : pid); changed(); toast(isT ? "총무를 해제했어요." : `${p.name} 님이 총무예요 👑`); }) },
     { text: "닫기", cls: "ghost" },
     { text: "이름 바꾸기", onClick: rename },
   ], { top: true });                       // 키보드에 가리지 않게 화면 위쪽에
@@ -319,7 +366,9 @@ export function drawReport() {
   const list = ev.expensesByDate(), bal = ev.balances(), tr = ev.settle();
   const ROW = 86, DAY = 56, PROW = 86;            // 항목은 두 줄(이름·결제자)이라 넉넉히
   const rowsH = 50 + list.length * ROW + new Set(list.map((e) => e.date)).size * DAY;
-  const H = 300 + rowsH + 90 + 70 + ev.participants.length * PROW + 90 + 64 + Math.max(1, tr.length) * 64 + 210;
+  const fl = ev.fundMode ? fundLines() : [];
+  const fundH = fl.length ? 40 + fl.length * 40 + 24 : 0;
+  const H = 300 + fundH + rowsH + 90 + 70 + ev.participants.length * PROW + 90 + 64 + Math.max(1, tr.length) * 64 + 210;
   const cv = document.createElement("canvas");
   const SC = Math.min(1, 15000 / H);              // 아이폰 캔버스 크기 한도(약 1,600만 화소) 안으로
   cv.width = Math.round(W * SC); cv.height = Math.round(H * SC);
@@ -356,6 +405,11 @@ export function drawReport() {
   if (instaImg.complete && instaImg.naturalWidth) c.drawImage(instaImg, W - P - 352, 64, 36, 36);
   text("@unibunny_official", W - P, 93, 30, "#FF8DBB", 800, "right");
   y += 40;
+  if (fl.length) {                                  // 모임 통장
+    panel(y, fundH); y += 46;
+    for (const [i, s] of fl.entries()) { text(s, P + 20, y, i ? 27 : 32, i ? "#FFF1E0" : "#FFD27A", i ? 400 : 800, "left", W - 2 * P - 40); y += 40; }
+    y += fundH - 46 - fl.length * 40 + 24;
+  }
   // 결제 내역
   panel(y, rowsH + 48); y += 54;
   text("🧾 결제 내역", P + 20, y, 34, "#FFD27A", 800); y += 18;
@@ -366,7 +420,8 @@ export function drawReport() {
     const who = e.shared_by.length === ev.participants.length ? "모두" : e.shared_by.map((p) => ev.participant(p).name).join("·");
     text(e.item_name, P + 40, y, 32, "#FFF1E0", 700, "left", W - 2 * P - 330);
     text(won(e.amount), W - P - 20, y, 32, "#FFF1E0", 800, "right");
-    text(`${label(e.payer_id)} 결제 · ${who}`, P + 40, y + 34, 23, "#CDBBCB", 400, "left", W - 2 * P - 80);
+    const whoR = ev.fundMode || e.shared_by.length === ev.participants.length ? "모두" : who;
+    text(`${label(e.payer_id)} 결제 · ${whoR}`, P + 40, y + 34, 23, "#CDBBCB", 400, "left", W - 2 * P - 80);
     y += 34;
   }
   y += 98;
@@ -375,10 +430,11 @@ export function drawReport() {
   panel(y, ph + 26); y += 54;
   text("📊 사람별 정산", P + 20, y, 34, "#FFD27A", 800);
   for (const p of ev.participants) {
-    const b = bal.get(p.id), [cls, s] = netText(b.net);
+    const b = bal.get(p.id), isT = ev.fundMode && p.id === ev.treasurerId;
+    const [cls, s] = isT ? ["even", "통장 관리"] : netText(b.net);
     y += PROW;
     text(label(p.id), P + 40, y - 14, 32, "#FFF1E0", 700, "left", W - 2 * P - 400);
-    text(`낸 돈 ${won(b.paid)} · 내 몫 ${won(b.owed)}`, P + 40, y + 22, 23, "#CDBBCB");
+    text(`${isT ? "통장에서 낸 돈" : "낸 돈"} ${won(b.paid)} · 내 몫 ${won(b.owed)}`, P + 40, y + 22, 23, "#CDBBCB");
     text(s, W - P - 20, y, 32, { get: "#6EE0B0", give: "#FF8FAE", even: "#CDBBCB" }[cls], 800, "right");
   }
   y += 82;
@@ -486,6 +542,14 @@ function wire() {
     checked = all ? new Set() : new Set(ev.participants.map((p) => p.id));
     render();
   };
+  for (const id of ["fund", "fee"]) {          // 치는 대로 쉼표, 칸을 나가면 저장(잘못되면 되돌림)
+    $(id).oninput = () => {
+      const digits = $(id).value.replace(/[^0-9]/g, "").replace(/^0+(?=\d)/, "").slice(0, 13);
+      $(id).value = digits ? Number(digits).toLocaleString("en-US") : "";
+    };
+    $(id).onchange = applyFund;
+  }
+  $("surplus").onchange = applyFund;
   $("submitBtn").onclick = submitExpense;
   $("exAmount").onkeydown = (e) => { if (e.key === "Enter") submitExpense(); };
   $("cancelBtn").onclick = () => { clearForm(); render(); };
@@ -495,7 +559,6 @@ function wire() {
   $("expenses").onclick = (e) => { const r = e.target.closest("[data-eid]"); if (r) editExpense(+r.dataset.eid); };
   $("shareImg").onclick = shareImage;
   $("shareText").onclick = shareText;
-  const newEvent = () => { startNew(); render(); setTab("people"); toast("새 정산을 시작했어요 🌱"); };
   $("newBtn").onclick = $("newBtnTop").onclick = newEvent;   // 목록 탭·사람 탭 맨 위, 같은 동작
   window.addEventListener("storage", (e) => {   // 다른 탭·홈 화면 앱에서 바뀌면 따라간다
     if (e.key !== STORE_KEY || DEMO) return;
@@ -576,6 +639,9 @@ function demo() {   // ?demo=1 — 설명·화면 확인용 예시(제주 2박3�
     ["2026-11-07", "흑돼지", 154000, 1, [1, 2, 3, 4]], ["2026-11-07", "편의점", 23400, 3, [1, 3]], ["2026-11-08", "해장국", 36000, 4, [1, 2, 3, 4]],
     ["2026-11-08", "카페", 27500, 2, [2, 4]], ["2026-11-08", "회", 189000, 1, [1, 2, 3, 4]], ["2026-11-09", "숙소", 260000, 3, [1, 2, 3, 4]]]) {
     e.addExpense(it, a, p, s, d);
+  }
+  if (params.get("demo") === "club") {   // ?demo=club — 회비 모임 예시(총무 철수, 잔액 150,000 + 참가비 100,000)
+    e.setTreasurer(1); e.setFund("150,000", "100,000", "carry");
   }
   store = { current: "demo", events: { demo: { saved_at: new Date().toISOString(), data: e.toDict() } } };
   openEvent("demo");

@@ -5,6 +5,10 @@
 //   결제자가 나눠 내는 사람에 있으면 결제자가 r 원을 더 내고,
 //   없으면(대신 결제) 나눠 내는 사람 앞에서부터(참석자 순서) 1 원씩 더 낸다.
 // 송금 경로: 받을 사람·보낼 사람을 큰 금액부터 맞춘다(송금 횟수 ≤ 차액 0 아닌 인원 − 1).
+// 모임 통장(fundMode): 잔액(fund)이나 1인 참가비(fee)가 있으면 켜짐, 총무(treasurerId) 필수.
+//   통장 = 잔액 + 참가비×인원. 지출은 전부 통장이 부담(개인이 대신 낸 돈은 총무가 돌려줌, 총무 결제 = 통장에서).
+//   모자라면 인원수로 똑같이 더 내고 남는 원은 총무가. 남으면 carry=다음 모임 잔액 / refund=똑같이 돌려주고 남는 원은 이월.
+//   각자의 몫(owed) = 참가비 + 더 낼 돈 − 돌려받을 돈. 송금은 모두 총무를 거친다.
 
 export const MAX_AMOUNT = 1e12;
 export const APP_URL = "https://unibunny-official.github.io/1won/";   // 공유 글 끝에 붙인다
@@ -31,6 +35,16 @@ export function parseAmount(text) {
   return v;
 }
 
+/** parseAmount 와 같되 빈칸·0 은 0원(모임 잔액·참가비처럼 없어도 되는 칸). */
+export function parseAmount0(text) {
+  let s = String(text ?? "").trim();
+  if (s.endsWith("원")) s = s.slice(0, -1).trim();
+  if (!s || /^0+$/.test(s)) return 0;
+  return parseAmount(text);
+}
+
+export const SURPLUS_MODES = ["carry", "refund"];   // 남는 돈: 다음 모임 잔액으로 / 똑같이 돌려주기
+
 /** '' 또는 실제 있는 날짜 'yyyy-MM-dd' 만 받는다. */
 export function checkDate(text) {
   const t = String(text ?? "").trim();
@@ -54,8 +68,64 @@ export class Event {
     this.title = title;
     this.participants = [];   // {id, name}
     this.expenses = [];       // {id, item_name, amount, payer_id, shared_by, date}
+    this.treasurerId = null;  // 총무(모임 통장을 가진 사람)
+    this.fund = 0;            // 모임 잔액(시작할 때 통장에 있던 돈)
+    this.fee = 0;             // 1인 참가비
+    this.surplus = "carry";   // 남는 돈: carry(다음 모임 잔액) / refund(똑같이 돌려주기)
     this.nextPid = 1;
     this.nextEid = 1;
+  }
+
+  // ----- 모임 통장 -----
+  get fundMode() { return this.fund > 0 || this.fee > 0; }
+
+  setTreasurer(pid) {
+    if (pid === null || pid === undefined) {
+      if (this.fundMode) throw new DutchPayError("모임 잔액이나 참가비가 있으면 총무가 필요해요. 다른 사람을 총무로 정해 주세요.");
+      this.treasurerId = null;
+      return;
+    }
+    this.participant(pid);
+    this.treasurerId = pid;
+  }
+
+  /** 모임 잔액·1인 참가비·남는 돈 처리 방식을 한 번에. 잘못되면 아무것도 바꾸지 않는다. */
+  setFund(fund, fee, surplus = "carry") {
+    const fundV = parseAmount0(fund), feeV = parseAmount0(fee);
+    if (!SURPLUS_MODES.includes(surplus)) throw new DutchPayError(`남는 돈 처리 방식이 이상해요: '${surplus}'`);
+    if ((fundV > 0 || feeV > 0) && (this.treasurerId === null || !this.participants.some((p) => p.id === this.treasurerId))) {
+      throw new DutchPayError("모임 잔액·참가비를 쓰려면 총무가 필요해요. 이름을 누르고 '총무로'를 눌러 주세요.");
+    }
+    this.fund = fundV; this.fee = feeV; this.surplus = surplus;
+  }
+
+  /** 같은 모임의 다음 정산: 사람·총무·참가비·남는 돈 방식·이름을 가져오고 잔액은 '다음 모임 잔액'으로. 지출은 비움. */
+  nextEvent(date) {
+    const ev = new Event({ date: checkDate(date), title: this.title });
+    ev.participants = this.participants.map((p) => ({ id: p.id, name: p.name }));
+    ev.nextPid = this.nextPid;
+    ev.treasurerId = this.treasurerId;
+    ev.fee = this.fee; ev.surplus = this.surplus;
+    ev.fund = this.fundMode ? this.fundSummary().nextFund : this.fund;
+    return ev;
+  }
+
+  /** {n, pool, total, short, extra, rem, refund, nextFund} — PC 판 fund_summary 와 같다. */
+  fundSummary() {
+    const n = this.participants.length;
+    const pool = this.fund + this.fee * n;
+    const total = this.total();
+    let short = 0, extra = 0, rem = 0, refund = 0, nextFund;
+    if (total > pool) {
+      short = total - pool;
+      if (n) { extra = Math.floor(short / n); rem = short - extra * n; }
+      nextFund = 0;
+    } else {
+      const left = pool - total;
+      if (this.surplus === "refund" && n) { refund = Math.floor(left / n); nextFund = left - refund * n; }
+      else nextFund = left;
+    }
+    return { n, pool, total, short, extra, rem, refund, nextFund };
   }
 
   // ----- 참석자 -----
@@ -87,6 +157,9 @@ export class Event {
   /** 뺄 수 없으면 이유를 담아 DutchPayError. (화면에서 '뺄까요?' 묻기 전에 먼저 확인) */
   checkRemovable(pid) {
     const p = this.participant(pid);
+    if (pid === this.treasurerId && this.fundMode) {
+      throw new DutchPayError(`${p.name} 님은 총무예요. 먼저 다른 사람을 총무로 정해 주세요.`);
+    }
     const paid = this.expenses.filter((e) => e.payer_id === pid).map((e) => e.item_name);
     if (paid.length) {
       throw new DutchPayError(`${p.name} 님이 결제한 항목이 있어요(${paid.join(", ")}). 그 항목의 결제자를 먼저 바꾸거나 지워 주세요.`);
@@ -102,6 +175,7 @@ export class Event {
     this.checkRemovable(pid);
     for (const e of this.expenses) e.shared_by = e.shared_by.filter((x) => x !== pid);
     this.participants = this.participants.filter((x) => x.id !== pid);
+    if (pid === this.treasurerId) this.treasurerId = null;
   }
 
   // ----- 지출 -----
@@ -163,9 +237,12 @@ export class Event {
 
   balances() {
     const out = new Map(this.participants.map((p) => [p.id, { paid: 0, owed: 0, net: 0 }]));
-    for (const e of this.expenses) {
-      out.get(e.payer_id).paid += e.amount;
-      for (const [pid, share] of this.split(e)) out.get(pid).owed += share;
+    for (const e of this.expenses) out.get(e.payer_id).paid += e.amount;
+    if (this.fundMode) {
+      const fs = this.fundSummary();
+      for (const [pid, b] of out) b.owed = this.fee + fs.extra + (pid === this.treasurerId ? fs.rem : 0) - fs.refund;
+    } else {
+      for (const e of this.expenses) for (const [pid, share] of this.split(e)) out.get(pid).owed += share;
     }
     for (const b of out.values()) b.net = b.paid - b.owed;
     return out;
@@ -177,8 +254,17 @@ export class Event {
 
   /** 누가 누구에게 얼마 보낼지 [{from, to, amount}]. 큰 금액끼리 먼저(참석자 순서로 동률 정리). */
   settle() {
-    const order = new Map(this.participants.map((p, i) => [p.id, i]));
     const nets = new Map([...this.balances()].map(([pid, b]) => [pid, b.net]));
+    if (this.fundMode) {              // 모두 총무를 거친다: 각자 → 총무(몫 − 대신 낸 돈), 음수면 총무 → 각자
+      const t = this.treasurerId, out = [];
+      for (const p of this.participants) {
+        const v = nets.get(p.id);
+        if (p.id === t || v === 0) continue;
+        out.push(v < 0 ? { from: p.id, to: t, amount: -v } : { from: t, to: p.id, amount: v });
+      }
+      return out;
+    }
+    const order = new Map(this.participants.map((p, i) => [p.id, i]));
     const cred = [...nets].filter(([, v]) => v > 0).map(([pid]) => pid)
       .sort((a, b) => nets.get(b) - nets.get(a) || order.get(a) - order.get(b));
     const debt = [...nets].filter(([, v]) => v < 0).map(([pid]) => pid)
@@ -210,6 +296,15 @@ export class Event {
     const name = new Map(this.participants.map((p) => [p.id, p.name]));
     const head = [this.dateRange(), this.title].filter(Boolean).join(" ") || "더치페이";
     const lines = [`🍰 ${head} 정산`, `총 ${won(this.total())} · ${this.participants.length}명`, ""];
+    if (this.fundMode) {
+      const fs = this.fundSummary();
+      const tname = name.get(this.treasurerId) ?? "총무";
+      const parts = [`잔액 ${won(this.fund)}`, ...(this.fee ? [`참가비 ${won(this.fee)}×${fs.n}명`] : [])];
+      lines.push(`💰 모임 통장(총무 ${tname}): ${parts.join(" + ")} = ${won(fs.pool)}`);
+      if (fs.short) lines.push(`   ${won(fs.short)} 모자라서 1인 ${won(fs.extra)}씩 더 내요` + (fs.rem ? `(남는 ${won(fs.rem)}은 총무가)` : ""));
+      else if (fs.refund) lines.push(`   ${won(fs.pool - fs.total)} 남아서 1인 ${won(fs.refund)}씩 돌려받아요` + (fs.nextFund ? `(${won(fs.nextFund)}은 다음 모임으로)` : ""));
+      lines.push(`   📌 다음 모임 잔액 ${won(fs.nextFund)}`, "");
+    }
     const manyDays = new Set(this.expenses.map((e) => e.date)).size > 1;
     for (const e of this.expensesByDate()) {
       const day = manyDays && e.date ? `${e.date.slice(5).replace("-", "/")} ` : "";
@@ -229,12 +324,16 @@ export class Event {
 
   // ----- 저장(PC 판 .dpay.json 과 같은 형식) -----
   toDict() {
-    return {
+    const d = {
       date: this.date, end_date: this.endDate, title: this.title,
       participants: this.participants.map((p) => ({ id: p.id, name: p.name })),
       expenses: this.expenses.map((e) => ({ id: e.id, date: e.date, item_name: e.item_name, amount: String(e.amount),
                                             payer_id: e.payer_id, shared_by: [...e.shared_by] })),
     };
+    if (this.treasurerId !== null || this.fundMode || this.surplus !== "carry") {
+      d.treasurer_id = this.treasurerId; d.fund = String(this.fund); d.fee = String(this.fee); d.surplus = this.surplus;
+    }
+    return d;
   }
 
   /** 저장 파일 복원. 입력할 때와 같은 검사를 거친다. */
@@ -265,6 +364,8 @@ export class Event {
         const day = checkDate(String(e.date ?? "")) || safeDate(ev.date);
         ev.expenses.push({ id: eid, item_name: name, amount, payer_id: payer, shared_by: shared, date: day });
       }
+      if (d.treasurer_id !== null && d.treasurer_id !== undefined) ev.setTreasurer(parseInt(d.treasurer_id, 10));   // 예전 파일엔 없음
+      ev.setFund(d.fund ?? 0, d.fee ?? 0, String(d.surplus ?? "carry"));
       ev.nextPid = ev.participants.reduce((m, p) => Math.max(m, p.id), 0) + 1;
       ev.nextEid = ev.expenses.reduce((m, e) => Math.max(m, e.id), 0) + 1;
       return ev;
